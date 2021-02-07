@@ -7,18 +7,23 @@ import scipy.sparse
 from scipy.spatial.distance import squareform
 import torch
 
+
 def inverse_abs(x):
-    return np.abs(1/x)
+    return np.abs(1 / x)
+
 
 def inverse_abs_zero(x):
-    return np.abs(1/(1+x))
+    return np.abs(1 / (1 + x))
+
 
 def format_func(name, channel, i):
-    return '{}_{}_{}'.format(name, channel, i)
+    return "{}_{}_{}".format(name, channel, i)
+
 
 def format_func_to_channel(form):
-    nums = form.split('_')
+    nums = form.split("_")
     return int(nums[1])
+
 
 def get_im2col_indices(x_shape, field_height, field_width, padding=1, stride=1):
     # First figure out what the size of the output should be
@@ -39,11 +44,12 @@ def get_im2col_indices(x_shape, field_height, field_width, padding=1, stride=1):
 
     return (k.astype(int), i.astype(int), j.astype(int))
 
+
 def im2col_indices(x, field_height, field_width, padding=1, stride=1):
-    ''' An implementation of im2col based on some fancy indexing '''
+    """ An implementation of im2col based on some fancy indexing """
     # Zero-pad the input
     p = padding
-    x_padded = np.pad(x, ((0, 0), (0, 0), (p, p), (p, p)), mode='constant')
+    x_padded = np.pad(x, ((0, 0), (0, 0), (p, p), (p, p)), mode="constant")
 
     k, i, j = get_im2col_indices(x.shape, field_height, field_width, padding, stride)
 
@@ -52,9 +58,9 @@ def im2col_indices(x, field_height, field_width, padding=1, stride=1):
     cols = cols.transpose(1, 2, 0).reshape(field_height * field_width * C, -1)
     return cols
 
-def col2im_indices(cols, x_shape, field_height=3, field_width=3, padding=1,
-                   stride=1):
-    '''An implementation of col2im based on fancy indexing and np.add.at'''
+
+def col2im_indices(cols, x_shape, field_height=3, field_width=3, padding=1, stride=1):
+    """An implementation of col2im based on fancy indexing and np.add.at"""
     N, C, H, W = x_shape
     H_padded, W_padded = H + 2 * padding, W + 2 * padding
     x_padded = np.zeros((N, C, H_padded, W_padded), dtype=cols.dtype)
@@ -66,6 +72,7 @@ def col2im_indices(cols, x_shape, field_height=3, field_width=3, padding=1,
         return x_padded
     return x_padded[:, :, padding:-padding, padding:-padding]
 
+
 def conv_layer_as_matrix(X, X_names, W, stride, padding):
     n_filters, d_filter, h_filter, w_filter = W.shape
     n_x, d_x, h_x, w_x = X.shape
@@ -74,7 +81,9 @@ def conv_layer_as_matrix(X, X_names, W, stride, padding):
     w_out = (w_x - w_filter + 2 * padding) / stride + 1
 
     X_col = im2col_indices(X, h_filter, w_filter, padding=padding, stride=stride)
-    X_names_col = im2col_indices(X_names, h_filter, w_filter, padding=padding, stride=stride)
+    X_names_col = im2col_indices(
+        X_names, h_filter, w_filter, padding=padding, stride=stride
+    )
     W_col = W.reshape(n_filters, -1)
 
     out = W_col @ X_col
@@ -83,10 +92,23 @@ def conv_layer_as_matrix(X, X_names, W, stride, padding):
 
     return out, X_col, W_col, X_names_col
 
-def add_conv(G, input_size, p, name_this, name_next, stride, padding, next_linear=False,
-            X=None, I=0, format_func=format_func, weight_func=inverse_abs_zero,
-            threshold=None):
-    '''Adds a convolutional layer to graph and returns updated graph. If X is
+
+def add_conv(
+    G,
+    input_size,
+    p,
+    name_this,
+    name_next,
+    stride,
+    padding,
+    next_linear=False,
+    X=None,
+    I=0,
+    format_func=format_func,
+    weight_func=inverse_abs_zero,
+    threshold=None,
+):
+    """Adds a convolutional layer to graph and returns updated graph. If X is
     given, compute the activation graph, otherwise compute the parameter graph.
 
     Args:
@@ -114,67 +136,117 @@ def add_conv(G, input_size, p, name_this, name_next, stride, padding, next_linea
     Returns:
         (networkx.Graph, tuple, int): a tuple representing the updated networkx graph,
             the new input size, and the running parameter index.
-    '''
+    """
     input_channels = p.shape[1]
     X = np.ones(input_size) if X is None else X
 
-    X_names = np.arange(X.shape[2]*X.shape[3]).reshape((1,1,X.shape[2],X.shape[3]))
+    X_names = np.arange(X.shape[2] * X.shape[3]).reshape((1, 1, X.shape[2], X.shape[3]))
     tx = X
-    filt_size = p.shape[2]*p.shape[3]
+    filt_size = p.shape[2] * p.shape[3]
     # convert to matrix information
-    mat, X_col, W_col, xnames = conv_layer_as_matrix(tx,X_names,p,stride,padding)
+    mat, X_col, W_col, xnames = conv_layer_as_matrix(tx, X_names, p, stride, padding)
     # print('input_size:', input_size, 'mat:', mat.shape, 'X_col:', X_col.shape, 'W_col:', W_col.shape)
     for row in range(X_col.shape[0]):
         for f in range(W_col.shape[0]):
-            c = row//filt_size
-            wix = I + f*W_col.shape[1] + row
+            c = row // filt_size
+            wix = I + f * W_col.shape[1] + row
             for col in range(X_col.shape[1]):
-                v = W_col[f,row] * X_col[row,col]
+                v = W_col[f, row] * X_col[row, col]
                 if threshold is None or weight_func(v) < threshold:
                     if next_linear:
                         # next layer is linear
-                        G.add_edge(format_func(name_this,c,xnames[row%filt_size,col]),format_func(name_next,0,(f*X_col.shape[1]) + col), weight=weight_func(v), idx=wix)
+                        G.add_edge(
+                            format_func(name_this, c, xnames[row % filt_size, col]),
+                            format_func(name_next, 0, (f * X_col.shape[1]) + col),
+                            weight=weight_func(v),
+                            idx=wix,
+                        )
                     else:
                         # next layer is conv
-                        G.add_edge(format_func(name_this,c,xnames[row%filt_size,col]),format_func(name_next,f,col), weight=weight_func(v), idx=wix)
+                        G.add_edge(
+                            format_func(name_this, c, xnames[row % filt_size, col]),
+                            format_func(name_next, f, col),
+                            weight=weight_func(v),
+                            idx=wix,
+                        )
     input_size = mat.shape
-    return G, input_size, wix+1
+    return G, input_size, wix + 1
+
 
 # under construction
-def add_mp(G, input_size, name_this, name_next, kernel_size, stride, padding, next_linear=False, format_func=format_func):
-    '''adds max pooling layer to graph and returns updated graph'''
-    p = np.ones((input_size[0],input_size[1],kernel_size[0],kernel_size[1]))
+def add_mp(
+    G,
+    input_size,
+    name_this,
+    name_next,
+    kernel_size,
+    stride,
+    padding,
+    next_linear=False,
+    format_func=format_func,
+):
+    """adds max pooling layer to graph and returns updated graph"""
+    p = np.ones((input_size[0], input_size[1], kernel_size[0], kernel_size[1]))
     input_channels = p.shape[1]
     # next layer also conv
     X = np.ones(input_size)
-    X_names = np.arange(X.shape[2]*X.shape[3]).reshape((1,1,X.shape[2],X.shape[3]))
+    X_names = np.arange(X.shape[2] * X.shape[3]).reshape((1, 1, X.shape[2], X.shape[3]))
     tx = X
-    filt_size = kernel_size[0]*kernel_size[1]
+    filt_size = kernel_size[0] * kernel_size[1]
     # convert to matrix information
-    mat, X_col, W_col, xnames = conv_layer_as_matrix(tx,X_names,p,stride,padding)
+    mat, X_col, W_col, xnames = conv_layer_as_matrix(tx, X_names, p, stride, padding)
     for f in range(W_col.shape[0]):
         for row in range(X_col.shape[0]):
-            c = row//filt_size
+            c = row // filt_size
             for col in range(X_col.shape[1]):
-                node_name = format_func(name_this,c,xnames[row%filt_size,col])
-                ews = sorted(G.in_edges(node_name, data=True), key=lambda x: x[2]['weight'])
+                node_name = format_func(name_this, c, xnames[row % filt_size, col])
+                ews = sorted(
+                    G.in_edges(node_name, data=True), key=lambda x: x[2]["weight"]
+                )
                 if len(ews) > 0:
                     # grab smallest value as this should correspond to largest
                     # weight before `weight_func` is applied.
-                    v = ews[0][2]['weight']
-                    wix = ews[0][2]['idx']
+                    v = ews[0][2]["weight"]
+                    wix = ews[0][2]["idx"]
                     if next_linear:
-                        G.add_edge(format_func(name_this,c,xnames[row%filt_size,col]),format_func(name_next,0,int((X_col.shape[1]*c) + (f*X_col.shape[1]) + col)), weight=v, idx=wix)
+                        G.add_edge(
+                            format_func(name_this, c, xnames[row % filt_size, col]),
+                            format_func(
+                                name_next,
+                                0,
+                                int((X_col.shape[1] * c) + (f * X_col.shape[1]) + col),
+                            ),
+                            weight=v,
+                            idx=wix,
+                        )
                     else:
-                        G.add_edge(format_func(name_this,c,xnames[row%filt_size,col]),format_func(name_next,f,col), weight=v, idx=wix)
+                        G.add_edge(
+                            format_func(name_this, c, xnames[row % filt_size, col]),
+                            format_func(name_next, f, col),
+                            weight=v,
+                            idx=wix,
+                        )
     input_size = [mat.shape[0], input_channels, mat.shape[2], mat.shape[3]]
     return G, input_size
 
 
-def add_shortcut(G, input_size, p, name_this, name_next, stride, padding, next_linear=False,
-            X=None, I=0, format_func=format_func, weight_func=inverse_abs_zero,
-            threshold=None, format_func_to_channel=format_func_to_channel):
-    '''Adds a convolutional layer to graph and returns updated graph. If X is
+def add_shortcut(
+    G,
+    input_size,
+    p,
+    name_this,
+    name_next,
+    stride,
+    padding,
+    next_linear=False,
+    X=None,
+    I=0,
+    format_func=format_func,
+    weight_func=inverse_abs_zero,
+    threshold=None,
+    format_func_to_channel=format_func_to_channel,
+):
+    """Adds a convolutional layer to graph and returns updated graph. If X is
     given, compute the activation graph, otherwise compute the parameter graph.
 
     Args:
@@ -202,7 +274,7 @@ def add_shortcut(G, input_size, p, name_this, name_next, stride, padding, next_l
     Returns:
         (networkx.Graph, tuple, int): a tuple representing the updated networkx graph,
             the new input size, and the running parameter index.
-    '''
+    """
     input_channels = p.shape[1]
     output_channels = p.shape[0]
 
@@ -213,17 +285,26 @@ def add_shortcut(G, input_size, p, name_this, name_next, stride, padding, next_l
         inc = format_func_to_channel(innode)
         for outnode in out_nodes:
             outc = format_func_to_channel(outnode)
-            v = p[outc,inc,0,0]
+            v = p[outc, inc, 0, 0]
             wix = I + inc + outc
             if threshold is None or weight_func(v) < threshold:
                 G.add_edge(innode, outnode, weight=weight_func(v), idx=wix)
     wix = I + input_channels + output_channels
-    return G, wix+1
+    return G, wix + 1
 
 
-def add_linear_linear(G, p, name_this, name_next, X=None, I=0, format_func=format_func,
-                    weight_func=inverse_abs_zero, threshold=None):
-    '''Adds linear layer to graph and returns updated graph. If X is given,
+def add_linear_linear(
+    G,
+    p,
+    name_this,
+    name_next,
+    X=None,
+    I=0,
+    format_func=format_func,
+    weight_func=inverse_abs_zero,
+    threshold=None,
+):
+    """Adds linear layer to graph and returns updated graph. If X is given,
     compute the activation graph, otherwise compute the parameter graph. This
     function creates a graphical representation of the matrix multiply operation.
 
@@ -247,19 +328,31 @@ def add_linear_linear(G, p, name_this, name_next, X=None, I=0, format_func=forma
     Returns:
         (networkx.Graph, int): the updated networkx graph and the running
             parameter index.
-    '''
-    p = p if X is None else p*X
+    """
+    p = p if X is None else p * X
     for row in range(p.shape[1]):
         for col in range(p.shape[0]):
-            wix = I + col*p.shape[1] + row
-            v = p[col,row]
+            wix = I + col * p.shape[1] + row
+            v = p[col, row]
             if threshold is None or weight_func(v) < threshold:
-                G.add_edge(format_func(name_this,0,row),format_func(name_next,0,col), weight=weight_func(v), idx=wix)
-    return G, wix+1
+                G.add_edge(
+                    format_func(name_this, 0, row),
+                    format_func(name_next, 0, col),
+                    weight=weight_func(v),
+                    idx=wix,
+                )
+    return G, wix + 1
 
-def to_directed_networkx(params, input_size, format_func=format_func,
-                        weight_func=inverse_abs_zero, threshold=None, verbose=True):
-    '''Create networkx representation of parameter graph of neural network. This
+
+def to_directed_networkx(
+    params,
+    input_size,
+    format_func=format_func,
+    weight_func=inverse_abs_zero,
+    threshold=None,
+    verbose=True,
+):
+    """Create networkx representation of parameter graph of neural network. This
     function takes a list of parameter values and a list of activation values,
     both in the form of a list of numpy arrays (converted from pytorch tensor),
     one element in the list per layer.
@@ -281,7 +374,7 @@ def to_directed_networkx(params, input_size, format_func=format_func,
 
     Returns:
         networkx.DiGraph: The networkx representation of the parameter network.
-    '''
+    """
     # store all network info here
     G = nx.DiGraph()
 
@@ -289,88 +382,155 @@ def to_directed_networkx(params, input_size, format_func=format_func,
     I = 1
 
     # assume last layer linear, loop over each layer and process
-    for l in range(len(params)-1):
+    for l in range(len(params) - 1):
 
         # get parameter information for current layer
         param = params[l]
         # need to look ahead at next layer to get naming correct
-        param_next = params[l+1]
+        param_next = params[l + 1]
         # shortcuts are not actually layers, so skip the name
-        if param_next['layer_type'] == 'Shortcut':
-            param_next = params[l+2]
+        if param_next["layer_type"] == "Shortcut":
+            param_next = params[l + 2]
 
-        if verbose: print('Layer: {}'.format(param['name']))
+        if verbose:
+            print("Layer: {}".format(param["name"]))
 
         # check the layer type to decide how to process
-        if param['layer_type'] == 'Conv2d':
+        if param["layer_type"] == "Conv2d":
 
-            if param_next['layer_type'] == 'Conv2d' or param_next['layer_type'] == 'MaxPool2d':
+            if (
+                param_next["layer_type"] == "Conv2d"
+                or param_next["layer_type"] == "MaxPool2d"
+            ):
                 # add edges and nodes of this layer to the networkx representation
-                G, input_size, I = add_conv(G, input_size, param['param'], param['name'],
-                                    param_next['name'], param['stride'],
-                                    param['padding'], next_linear=False, I=I,
-                                    format_func=format_func, weight_func=weight_func,
-                                    threshold=threshold)
+                G, input_size, I = add_conv(
+                    G,
+                    input_size,
+                    param["param"],
+                    param["name"],
+                    param_next["name"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=False,
+                    I=I,
+                    format_func=format_func,
+                    weight_func=weight_func,
+                    threshold=threshold,
+                )
 
-            elif param_next['layer_type'] == 'Linear':
+            elif param_next["layer_type"] == "Linear":
 
-                G, input_size, I = add_conv(G, input_size, param['param'], param['name'],
-                                    param_next['name'], param['stride'],
-                                    param['padding'], next_linear=True, I=I,
-                                    format_func=format_func, weight_func=weight_func,
-                                    threshold=threshold)
+                G, input_size, I = add_conv(
+                    G,
+                    input_size,
+                    param["param"],
+                    param["name"],
+                    param_next["name"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=True,
+                    I=I,
+                    format_func=format_func,
+                    weight_func=weight_func,
+                    threshold=threshold,
+                )
 
-        elif param['layer_type'] == 'MaxPool2d':
+        elif param["layer_type"] == "MaxPool2d":
 
-            if param_next['layer_type'] == 'Conv2d':
+            if param_next["layer_type"] == "Conv2d":
 
-                G, input_size = add_mp(G, input_size, param['name'], param_next['name'],
-                                    param['kernel_size'], param['stride'],
-                                    param['padding'], next_linear=False,
-                                    format_func=format_func)
+                G, input_size = add_mp(
+                    G,
+                    input_size,
+                    param["name"],
+                    param_next["name"],
+                    param["kernel_size"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=False,
+                    format_func=format_func,
+                )
 
-            if param_next['layer_type'] == 'Linear':
+            if param_next["layer_type"] == "Linear":
 
-                G, input_size = add_mp(G, input_size, param['name'], param_next['name'],
-                                    param['kernel_size'], param['stride'],
-                                    param['padding'], next_linear=True,
-                                    format_func=format_func)
+                G, input_size = add_mp(
+                    G,
+                    input_size,
+                    param["name"],
+                    param_next["name"],
+                    param["kernel_size"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=True,
+                    format_func=format_func,
+                )
 
-        elif param['layer_type'] == 'Linear':
+        elif param["layer_type"] == "Linear":
             # linear layer
-            G, I = add_linear_linear(G, param['param'], param['name'], param_next['name'],
-                                    I=I, format_func=format_func, weight_func=weight_func,
-                                    threshold=threshold)
+            G, I = add_linear_linear(
+                G,
+                param["param"],
+                param["name"],
+                param_next["name"],
+                I=I,
+                format_func=format_func,
+                weight_func=weight_func,
+                threshold=threshold,
+            )
 
-        elif param['layer_type'] == 'Shortcut':
+        elif param["layer_type"] == "Shortcut":
 
             # get the layers the shortcut connects
-            from_name = params[param['connects'][0]]['name']
-            to_name = params[param['connects'][1]]['name']
+            from_name = params[param["connects"][0]]["name"]
+            to_name = params[param["connects"][1]]["name"]
             # G, I = add_shortcut(G, input_size, param['param'], from_name,
             #                     to_name, param['stride'],
             #                     param['padding'], next_linear=False, I=I,
             #                     format_func=format_func, weight_func=weight_func,
             #                     threshold=threshold)
-            G, _, I = add_conv(G, input_size, np.transpose(param['param'], (1,0,2,3)), from_name,
-                                to_name, param['stride'],
-                                param['padding'], next_linear=False, I=I,
-                                format_func=format_func, weight_func=weight_func,
-                                threshold=threshold)
+            G, _, I = add_conv(
+                G,
+                input_size,
+                np.transpose(param["param"], (1, 0, 2, 3)),
+                from_name,
+                to_name,
+                param["stride"],
+                param["padding"],
+                next_linear=False,
+                I=I,
+                format_func=format_func,
+                weight_func=weight_func,
+                threshold=threshold,
+            )
 
         else:
-            raise ValueError('Layer type not implemented ')
+            raise ValueError("Layer type not implemented ")
 
     # add in last layer
-    if verbose: print('Layer: {}'.format(params[-1]['name']))
-    G, I = add_linear_linear(G, params[-1]['param'], params[-1]['name'], 'Output',
-                            I=I, format_func=format_func, weight_func=weight_func,
-                            threshold=threshold)
+    if verbose:
+        print("Layer: {}".format(params[-1]["name"]))
+    G, I = add_linear_linear(
+        G,
+        params[-1]["param"],
+        params[-1]["name"],
+        "Output",
+        I=I,
+        format_func=format_func,
+        weight_func=weight_func,
+        threshold=threshold,
+    )
     return G
 
-def to_directed_networkx_activations(params, activations, format_func=format_func,
-                        weight_func=inverse_abs_zero, threshold=None, verbose=True):
-    '''Create networkx representation of activation graph of neural network. This
+
+def to_directed_networkx_activations(
+    params,
+    activations,
+    format_func=format_func,
+    weight_func=inverse_abs_zero,
+    threshold=None,
+    verbose=True,
+):
+    """Create networkx representation of activation graph of neural network. This
     function takes a list of parameter values and a list of activation values,
     both in the form of a list of numpy arrays (converted from pytorch tensor),
     one element in the list per layer.
@@ -392,7 +552,7 @@ def to_directed_networkx_activations(params, activations, format_func=format_fun
 
     Returns:
         networkx.DiGraph: The networkx representation of the activation network.
-    '''
+    """
     # store all network info here
     G = nx.DiGraph()
 
@@ -402,88 +562,144 @@ def to_directed_networkx_activations(params, activations, format_func=format_fun
     I = 1
 
     # assume last layer linear, loop over each layer and process
-    for l in range(len(params)-1):
+    for l in range(len(params) - 1):
 
         # get parameter information for current layer
         param = params[l]
         # need to look ahead at next layer to get naming correct
-        param_next = params[l+1]
+        param_next = params[l + 1]
 
         X = activations[l]
 
-        if verbose: print('Layer: {}'.format(param['name']))
+        if verbose:
+            print("Layer: {}".format(param["name"]))
 
         # check the layer type to decide how to process
 
-        if param['layer_type'] == 'Conv2d':
+        if param["layer_type"] == "Conv2d":
             # convolutional layer
 
-            if param_next['layer_type'] == 'Conv2d' or param_next['layer_type'] == 'MaxPool2d':
+            if (
+                param_next["layer_type"] == "Conv2d"
+                or param_next["layer_type"] == "MaxPool2d"
+            ):
                 # convolutional layer followed by a conv layer or maxpool layer
 
                 # add edges and nodes of this layer to the networkx representation
-                G, input_size, I = add_conv(G, input_size, param['param'], param['name'],
-                                    param_next['name'], param['stride'],
-                                    param['padding'], next_linear=False, I=I,
-                                    format_func=format_func, weight_func=weight_func,
-                                    threshold=threshold, X=X)
+                G, input_size, I = add_conv(
+                    G,
+                    input_size,
+                    param["param"],
+                    param["name"],
+                    param_next["name"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=False,
+                    I=I,
+                    format_func=format_func,
+                    weight_func=weight_func,
+                    threshold=threshold,
+                    X=X,
+                )
 
-            elif param_next['layer_type'] == 'Linear':
+            elif param_next["layer_type"] == "Linear":
                 # convolutional layer followed by FC layer
 
-                G, input_size, I = add_conv(G, input_size, param['param'], param['name'],
-                                    param_next['name'], param['stride'],
-                                    param['padding'], next_linear=True, I=I,
-                                    format_func=format_func, weight_func=weight_func,
-                                    threshold=threshold, X=X)
+                G, input_size, I = add_conv(
+                    G,
+                    input_size,
+                    param["param"],
+                    param["name"],
+                    param_next["name"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=True,
+                    I=I,
+                    format_func=format_func,
+                    weight_func=weight_func,
+                    threshold=threshold,
+                    X=X,
+                )
 
-        elif param['layer_type'] == 'MaxPool2d':
+        elif param["layer_type"] == "MaxPool2d":
             # max pooling layer
 
-            if param_next['layer_type'] == 'Conv2d':
+            if param_next["layer_type"] == "Conv2d":
                 # maxpool layer followed by convolutional layer
 
-                G, input_size = add_mp(G, input_size, param['name'], param_next['name'],
-                                    param['kernel_size'], param['stride'],
-                                    param['padding'], next_linear=False,
-                                    format_func=format_func)
+                G, input_size = add_mp(
+                    G,
+                    input_size,
+                    param["name"],
+                    param_next["name"],
+                    param["kernel_size"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=False,
+                    format_func=format_func,
+                )
 
-            if param_next['layer_type'] == 'Linear':
+            if param_next["layer_type"] == "Linear":
                 # maxpool layer followed by linear layer
 
-                G, input_size = add_mp(G, input_size, param['name'], param_next['name'],
-                                    param['kernel_size'], param['stride'],
-                                    param['padding'], next_linear=True,
-                                    format_func=format_func)
+                G, input_size = add_mp(
+                    G,
+                    input_size,
+                    param["name"],
+                    param_next["name"],
+                    param["kernel_size"],
+                    param["stride"],
+                    param["padding"],
+                    next_linear=True,
+                    format_func=format_func,
+                )
 
-        elif param['layer_type'] == 'Linear':
+        elif param["layer_type"] == "Linear":
 
             if len(X.shape) == 4:
-                X = X.reshape(-1,X.shape[1]*X.shape[2]*X.shape[3])
+                X = X.reshape(-1, X.shape[1] * X.shape[2] * X.shape[3])
             # linear layer. Assume next layer is also going to be linear
-            G, I = add_linear_linear(G, param['param'], param['name'], param_next['name'],
-                                    I=I, format_func=format_func, weight_func=weight_func,
-                                    threshold=threshold, X=X)
+            G, I = add_linear_linear(
+                G,
+                param["param"],
+                param["name"],
+                param_next["name"],
+                I=I,
+                format_func=format_func,
+                weight_func=weight_func,
+                threshold=threshold,
+                X=X,
+            )
 
         else:
-            raise ValueError('Layer type not implemented ')
+            raise ValueError("Layer type not implemented ")
 
-    X = activations[l+1]
+    X = activations[l + 1]
     # add in last layer and assume linear
-    if verbose: print('Layer: {}'.format(params[-1]['name']))
+    if verbose:
+        print("Layer: {}".format(params[-1]["name"]))
     if len(X.shape) == 4:
-        X = X.reshape(-1,X.shape[1]*X.shape[2]*X.shape[3])
-    G, I = add_linear_linear(G, params[-1]['param'], params[-1]['name'], 'Output',
-                            I=I, format_func=format_func, weight_func=weight_func,
-                            threshold=threshold, X=X)
+        X = X.reshape(-1, X.shape[1] * X.shape[2] * X.shape[3])
+    G, I = add_linear_linear(
+        G,
+        params[-1]["param"],
+        params[-1]["name"],
+        "Output",
+        I=I,
+        format_func=format_func,
+        weight_func=weight_func,
+        threshold=threshold,
+        X=X,
+    )
 
     return G
 
+
 def get_weights(model, tensors=False):
-    '''Helper function to retrieve named weights from pytorch model.'''
+    """Helper function to retrieve named weights from pytorch model."""
     params = []
     for name, param in model.named_parameters():
-        if 'weight' in name and 'bn' not in name:
+        if "weight" in name and "bn" not in name:
             if tensors:
                 pnum = param.data
             else:
@@ -491,17 +707,22 @@ def get_weights(model, tensors=False):
             params.append(pnum)
     return params
 
+
 def append_params(param_info, params, normalize=False):
-    '''Helper function to append pytorch parameters to parameter information.'''
+    """Helper function to append pytorch parameters to parameter information."""
     j = 0
     for i in range(len(param_info)):
         p = param_info[i]
 
-        if 'param_idx' in p:
-            p['param'] = params[p['param_idx']]
+        if "param_idx" in p:
+            p["param"] = params[p["param_idx"]]
             j += 1
 
-        elif p['layer_type'] == 'Conv2d' or p['layer_type'] == 'Linear' or p['layer_type'] == 'Shortcut':
+        elif (
+            p["layer_type"] == "Conv2d"
+            or p["layer_type"] == "Linear"
+            or p["layer_type"] == "Shortcut"
+        ):
             # if ndim == 1, probably batch norm, pass
             if params[j].ndim > 1:
                 param = params[j]
@@ -516,17 +737,20 @@ def append_params(param_info, params, normalize=False):
                 if param.ndim == 4:
                     for f in range(param.shape[0]):
                         # param[f,:,:,:] = (param[f,:,:,:] - np.mean(param[f,:,:,:]))/np.std(param[f,:,:,:])
-                        param[f,:,:,:] = param[f,:,:,:] / np.linalg.norm(param[f,:,:,:])
+                        param[f, :, :, :] = param[f, :, :, :] / np.linalg.norm(
+                            param[f, :, :, :]
+                        )
 
-            p['param'] = param
+            p["param"] = param
             j += 1
         else:
-            p['param'] = None
+            p["param"] = None
 
     return param_info
 
+
 def get_activations(model, data):
-    '''Retrieves and returns the activations at each layer given an input `data`.
+    """Retrieves and returns the activations at each layer given an input `data`.
 
     Args:
         model (pytorch model): the model from which to retrieve activations.
@@ -536,9 +760,10 @@ def get_activations(model, data):
     Returns:
         list[torch.Tensor]: a list of torch tensors representing the activations
             at each layer.
-    '''
+    """
     # a dictionary that keeps saving the activations as they come
     activations = collections.defaultdict(list)
+
     def save_activation(name, mod, inp, out):
         activations[name].append(out.cpu())
 
@@ -547,7 +772,11 @@ def get_activations(model, data):
     # called repeatedly at different stages of the forward pass (like RELUs), this will save different
     # activations. Editing the forward pass code to save activations is the way to go for these cases.
     for name, m in model.named_modules():
-        if type(m) == torch.nn.Conv2d or type(m) == torch.nn.Linear or type(m) == torch.nn.MaxPool2d:
+        if (
+            type(m) == torch.nn.Conv2d
+            or type(m) == torch.nn.Linear
+            or type(m) == torch.nn.MaxPool2d
+        ):
             # partial to assign the layer name to each hook
             m.register_forward_hook(partial(save_activation, name))
 
@@ -556,12 +785,18 @@ def get_activations(model, data):
         out = model(data)
 
     # concatenate all the outputs we saved to get the the activations for each layer for the whole dataset
-    activations = {name: torch.cat(outputs, 0).data.numpy() for name, outputs in activations.items()}
+    activations = {
+        name: torch.cat(outputs, 0).data.numpy()
+        for name, outputs in activations.items()
+    }
 
-    return [data] + [v for k,v in activations.items()]
+    return [data] + [v for k, v in activations.items()]
 
-def parameter_graph(model, param_info, input_size):
-    '''Returns a networkx DiGraph representation of the model's parameter graph.
+
+def parameter_graph(
+    model, param_info, input_size, weight_func=inverse_abs_zero, ignore_zeros=False
+):
+    """Returns a networkx DiGraph representation of the model's parameter graph.
 
     Args:
         model (pytorch model): the model from which to form the parameter graph.
@@ -572,18 +807,27 @@ def parameter_graph(model, param_info, input_size):
 
     Returns:
         networkx.DiGraph: the parameter graph representation of the model.
-    '''
+    """
     # get parameters from named parameters of model
     params = get_weights(model)
 
     # add `param` key to `param_info` list of dicts
     param_info = append_params(param_info, params)
 
-    return to_directed_networkx(param_info, input_size)
+    return to_directed_networkx(param_info, input_size, weight_func=weight_func)
 
-def activation_graph(model, param_info, data, ignore_zeros=False, weight_func=inverse_abs_zero,
-                    threshold=None, verbose=False, format_func=format_func):
-    '''Returns a networkx DiGraph representation of the model's activation graph
+
+def activation_graph(
+    model,
+    param_info,
+    data,
+    ignore_zeros=False,
+    weight_func=inverse_abs_zero,
+    threshold=None,
+    verbose=False,
+    format_func=format_func,
+):
+    """Returns a networkx DiGraph representation of the model's activation graph
     for a given input `data`.
 
     Args:
@@ -605,7 +849,7 @@ def activation_graph(model, param_info, data, ignore_zeros=False, weight_func=in
 
     Returns:
         networkx.DiGraph: the activation graph representation of the model.
-    '''
+    """
     # get parameters from named parameters of model
     params = get_weights(model)
     # add `param` key to `param_info` list of dicts
@@ -615,12 +859,18 @@ def activation_graph(model, param_info, data, ignore_zeros=False, weight_func=in
 
     threshold = weight_func(0.0) if ignore_zeros else threshold
 
-    return to_directed_networkx_activations(param_info, activations,
-            format_func=format_func, weight_func=weight_func, threshold=threshold,
-            verbose=verbose)
+    return to_directed_networkx_activations(
+        param_info,
+        activations,
+        format_func=format_func,
+        weight_func=weight_func,
+        threshold=threshold,
+        verbose=verbose,
+    )
+
 
 def flatten_params(param_info):
-    '''Flattens parameter vectors so as to match the flattening that happens
+    """Flattens parameter vectors so as to match the flattening that happens
     when computing the graphical representation of the network.
 
     Args:
@@ -629,47 +879,49 @@ def flatten_params(param_info):
 
     Returns:
         np.array: the parameters of the network in a flattened, 1D array.
-    '''
+    """
     param_vecs = []
     for param in param_info:
-        if param['layer_type'] == 'Conv2d' or param['layer_type'] == 'Shortcut':
-            p = param['param']
-            param_vecs.append(p.reshape(p.shape[0],-1).flatten())
-        if param['layer_type'] == 'Linear':
-            p = param['param']
+        if param["layer_type"] == "Conv2d" or param["layer_type"] == "Shortcut":
+            p = param["param"]
+            param_vecs.append(p.reshape(p.shape[0], -1).flatten())
+        if param["layer_type"] == "Linear":
+            p = param["param"]
             param_vecs.append(p.flatten())
 
     # make the first element zero (could be anything given we're filtering below)
-    param_vecs = [np.array([0.])] + param_vecs
+    param_vecs = [np.array([0.0])] + param_vecs
     param_vec = np.concatenate(param_vecs)
 
     return param_vec
+
 
 def inverse_flatten_params(params, param_info):
     param_vecs = []
     idx_start = 1
     for param in param_info:
-        if param['layer_type'] == 'Conv2d' or param['layer_type'] == 'Shortcut':
-            p = param['param']
-            flattened = p.reshape(p.shape[0],-1).flatten()
-            param_to_expand = params[idx_start:idx_start+flattened.shape[0]]
+        if param["layer_type"] == "Conv2d" or param["layer_type"] == "Shortcut":
+            p = param["param"]
+            flattened = p.reshape(p.shape[0], -1).flatten()
+            param_to_expand = params[idx_start : idx_start + flattened.shape[0]]
             idx_start += flattened.shape[0]
-            param_to_expand = param_to_expand.reshape(p.shape[0],-1).reshape(p.shape)
+            param_to_expand = param_to_expand.reshape(p.shape[0], -1).reshape(p.shape)
             param_vecs.append(param_to_expand)
-        if param['layer_type'] == 'Linear':
-            p = param['param']
+        if param["layer_type"] == "Linear":
+            p = param["param"]
             flattened = p.flatten()
-            param_to_expand = params[idx_start:idx_start+flattened.shape[0]]
+            param_to_expand = params[idx_start : idx_start + flattened.shape[0]]
             idx_start += flattened.shape[0]
             param_vecs.append(param_to_expand.reshape(p.shape))
 
     return param_vecs
 
-class NNGraph(object):
 
-    def __init__(self, weight_func=inverse_abs_zero, format_func=format_func,
-                undirected=True):
-        '''NNGraph class for computing parameter graph of network.
+class NNGraph(object):
+    def __init__(
+        self, weight_func=inverse_abs_zero, format_func=format_func, undirected=True
+    ):
+        """NNGraph class for computing parameter graph of network.
 
         Args:
             weight_func (callable, optional): function to be applied to weights
@@ -679,7 +931,7 @@ class NNGraph(object):
                 function should take three values and return a string.
             undirected (bool, optional): whether to construct the undirected
                 version of the graph.
-        '''
+        """
         self.G = nx.DiGraph()
         self.adj = None
         self.graph_idx_vec = None
@@ -691,12 +943,25 @@ class NNGraph(object):
         self.undirected = undirected
 
     def update_indices(self):
-        self.graph_idx_vec = np.array(nx.to_numpy_matrix(self.G, weight='idx', dtype='int'))[np.tril_indices(len(self.G.nodes()),-1)]
-        self.adj_vec = np.array(nx.to_numpy_matrix(self.G, weight='weight'))[np.tril_indices(len(self.G.nodes()),-1)]
+        self.graph_idx_vec = np.array(
+            nx.to_numpy_matrix(self.G, weight="idx", dtype="int")
+        )[np.tril_indices(len(self.G.nodes()), -1)]
+        self.adj_vec = np.array(nx.to_numpy_matrix(self.G, weight="weight"))[
+            np.tril_indices(len(self.G.nodes()), -1)
+        ]
 
-    def parameter_graph(self, model, param_info, input_size, ignore_zeros=False,
-                        update_indices=False, threshold=None, verbose=False, normalize=False):
-        '''Returns a networkx DiGraph representation of the model's parameter graph.
+    def parameter_graph(
+        self,
+        model,
+        param_info,
+        input_size,
+        ignore_zeros=False,
+        update_indices=False,
+        threshold=None,
+        verbose=False,
+        normalize=False,
+    ):
+        """Returns a networkx DiGraph representation of the model's parameter graph.
         Also instantiates the class's internal representations of the network.
 
         Args:
@@ -710,7 +975,7 @@ class NNGraph(object):
 
         Returns:
             networkx.DiGraph: the parameter graph representation of the model.
-        '''
+        """
         self.input_size = input_size
         # get parameters from named parameters of model
         params = get_weights(model)
@@ -718,9 +983,14 @@ class NNGraph(object):
         param_info = append_params(param_info, params, normalize=normalize)
         self.current_param_info = param_info
         threshold = self.weight_func(0.0) if ignore_zeros else threshold
-        G  = to_directed_networkx(self.current_param_info, self.input_size,
-                                format_func=self.format_func, weight_func=self.weight_func,
-                                threshold=threshold, verbose=verbose)
+        G = to_directed_networkx(
+            self.current_param_info,
+            self.input_size,
+            format_func=self.format_func,
+            weight_func=self.weight_func,
+            threshold=threshold,
+            verbose=verbose,
+        )
         if self.undirected:
             G = G.to_undirected()
         self.G = G
@@ -732,28 +1002,28 @@ class NNGraph(object):
         self.update_indices()
 
     def get_adjacency(self):
-        '''returns adjacency matrix from its flattened form.'''
+        """returns adjacency matrix from its flattened form."""
         num_nodes = len(self.G.nodes())
-        i,j = np.tril_indices(num_nodes,-1)
-        R = np.zeros((num_nodes,num_nodes))
-        R[i,j] = self.adj_vec
-        R[j,i] = self.adj_vec
+        i, j = np.tril_indices(num_nodes, -1)
+        R = np.zeros((num_nodes, num_nodes))
+        R[i, j] = self.adj_vec
+        R[j, i] = self.adj_vec
         return R
 
     def get_idx_adjacency(self):
-        '''returns adjacency matrix from its flattened form.'''
+        """returns adjacency matrix from its flattened form."""
         sq = int(np.sqrt(self.graph_idx_vec.size))
         return np.reshape(self.graph_idx_vec, (sq, sq))
 
     def update_adjacency(self, model):
-        '''Updates the parameter adjacency matrix given a model's parameters.
+        """Updates the parameter adjacency matrix given a model's parameters.
         This function assumes the input model is the same architecture as that
         the NNGraph instantiation is based on.
 
         Args:
             model (pytorch model): the model from which to extract parameters and
                 update the adjacency matrix.
-        '''
+        """
         params = get_weights(model)
         # add `param` key to `param_info` list of dicts
         param_info = append_params(self.current_param_info, params)
@@ -762,11 +1032,13 @@ class NNGraph(object):
         param_vec = flatten_params(param_info)
 
         self.param_vec = param_vec
-        self.adj_vec[self.graph_idx_vec > 0] = self.weight_func(np.squeeze(np.take(param_vec, self.graph_idx_vec[self.graph_idx_vec > 0])))
+        self.adj_vec[self.graph_idx_vec > 0] = self.weight_func(
+            np.squeeze(np.take(param_vec, self.graph_idx_vec[self.graph_idx_vec > 0]))
+        )
 
     def update_graph(self):
         node_names = list(self.G.nodes())
-        name_dict = { i : node_names[i] for i in range(len(node_names)) }
+        name_dict = {i: node_names[i] for i in range(len(node_names))}
         adj = self.get_adjacency()
         cu = nx.Graph() if self.undirected else nx.DiGraph()
         G = nx.relabel_nodes(nx.from_numpy_matrix(adj, create_using=cu), name_dict)
