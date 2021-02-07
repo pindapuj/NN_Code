@@ -1,4 +1,7 @@
-# Neural Network Graph Homology Package
+## GenGraph and GenData
+Use the provided scripts to generate experiments and corresponding graphs. 
+
+# [Neural Network Graph Homology Package](https://github.com/tgebhart/nn_homology)
 
 This package provides functionality for computing a graphical representation of
 feedforward neural networks in pytorch. One may also use this package to compute
@@ -21,12 +24,6 @@ And if you want the package to compute homology for you (a la ripser.scikit-tda.
 
   - Cython
   - Ripser
-
-To install, run
-
-`$ pip install .` or if you want to edit the package `$ pip install -e .`.
-
-
 
 ### Limitations
 
