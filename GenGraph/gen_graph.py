@@ -639,12 +639,6 @@ def convert_model_to_network(
 
     else:
         try:
-            save_np = os.path.join(save_path, "np_arrays")
-            os.mkdir(save_np)
-        except:
-            print("np_arrays -- {}  already exists".format(str(save_np)))
-
-        try:
             # nx_graph
             save_nx = os.path.join(save_path, "nx_graphs")
             os.mkdir(save_nx)
@@ -661,14 +655,17 @@ def convert_model_to_network(
             print("Processing: ", file)
 
             # load the model
-            state_dict = torch.load(file)
+            try:
+                state_dict = torch.load(file)
+            except:
+                state_dict = torch.load(file)["state_dict"]
             missing, unexpected = net.load_state_dict(state_dict, strict=False)
             print("Missing keys: ", missing)
             print("Unexpected keys: ", unexpected)
             net.eval()
 
             if not args.activation_graph:
-                print("Prcessed")
+                print("Processed Parameter Graph -- {}".format(e_num))
                 G = parameter_graph(
                     model=net,
                     param_info=net.param_info,
@@ -678,10 +675,7 @@ def convert_model_to_network(
                 )
 
             ckpt_name = Path(file).stem
-            print("=> Checkpoint Name: {}".format(ckpt_name))
-
-            # numpy_save_path = os.path.join(save_np, "{}_ph_adj.npy".format(ckpt_name))
-            # np.save(numpy_save_path,G_adj)
+            print("=> {} -- Checkpoint Name: {}".format(e_num, ckpt_name))
 
             graph_save_path = os.path.join(save_nx, "{}_ph_nx.pkl".format(ckpt_name))
             with open(graph_save_path, "wb") as file:

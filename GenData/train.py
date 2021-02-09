@@ -152,7 +152,7 @@ def make_experiment(net, args, trainloader, testloader):
             num_saved_counter += 1
 
             file_name = str(exp_name) + "/checkout_{}_{:03d}.pth".format(epoch, i)
-            torch.save(net.state_dict(), file_name)
+            torch.save(checkpoint, file_name)
 
             if i == 0:
                 print("File name: {}".format(file_name))
@@ -177,4 +177,13 @@ def make_experiment(net, args, trainloader, testloader):
             break
 
     save_configs(args, exp_name, epoch_acc, early_stop_num)
+
+    checkpoint = {
+        "state_dict": net.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "acc": acc,
+    }
+    file_name = str(exp_name) + "/FINAL_{}_{:03d}.pth".format(epoch, i)
+    torch.save(net.state_dict(), file_name)
+    print("File name: {}".format(file_name))
     return epoch_acc
