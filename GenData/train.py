@@ -1,7 +1,6 @@
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
@@ -65,11 +64,12 @@ def make_experiment(net, args, trainloader, testloader):
     else:
         optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum)
 
-    writer = SummaryWriter(
-        comment="_LR_{}_M_{}_EPOCH_{}_SAVEFREQ_{}".format(
-            args.lr, args.momentum, args.num_epochs, args.save_freq
-        )
-    )
+    #
+    # writer = SummaryWriter(
+    #    comment="_LR_{}_M_{}_EPOCH_{}_SAVEFREQ_{}".format(
+    #        args.lr, args.momentum, args.num_epochs, args.save_freq
+    #    )
+    #)
     losses = []
     accuracy = []
     acc = 0
@@ -94,9 +94,9 @@ def make_experiment(net, args, trainloader, testloader):
             running_loss += loss.item()
             if i % 2000 == 1999:  # print every 2000 mini-batches
                 print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1, running_loss / 2000))
-                writer.add_scalar(
-                    "training loss", loss.item(), epoch * len(trainloader) + i
-                )
+                #writer.add_scalar(
+                #    "training loss", loss.item(), epoch * len(trainloader) + i
+                #)
                 running_loss = 0.0
 
                 # get accuracy 2k minibatches
@@ -110,16 +110,16 @@ def make_experiment(net, args, trainloader, testloader):
                         total += labels.size(0)
                         correct += (predicted == labels).sum().item()
                 acc = 100 * correct / total
-                writer.add_scalar("test accuracy", acc, epoch * len(trainloader) + i)
+                #writer.add_scalar("test accuracy", acc, epoch * len(trainloader) + i)
 
                 # get histograms!
-                for j in net.state_dict().keys():
-                    name_j = j + "_dist"
-                    writer.add_histogram(
-                        name_j,
-                        net.state_dict()[j].numpy().flatten(),
-                        epoch * len(trainloader) + i,
-                    )
+                #for j in net.state_dict().keys():
+                #    name_j = j + "_dist"
+                #    writer.add_histogram(
+                #        name_j,
+                #        net.state_dict()[j].numpy().flatten(),
+                #        epoch * len(trainloader) + i,
+                #    )
 
             # save every x minibatches or save every x epochs
             if (
