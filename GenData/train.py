@@ -172,9 +172,9 @@ def make_experiment(net, args, trainloader, testloader):
         epoch_acc = 100 * correct / total
         print("Accuracy of the network on the 10000 test images: %d %%" % (epoch_acc))
         # PT: 6/22/2020, burnin period of 10, not used in prior experiments
-        if es.step(torch.tensor(epoch_acc)) and epoch > 10:
-            early_stop_num = epoch
-            break
+        #if es.step(torch.tensor(epoch_acc)) and epoch > 10:
+        #    early_stop_num = epoch
+        #    break
 
     save_configs(args, exp_name, epoch_acc, early_stop_num)
 
