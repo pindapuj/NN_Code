@@ -14,7 +14,7 @@ time python ../GenData/driver.py \
     --lr=${lr} \
     --dr=${dr} \
     --num_epochs=${num_epochs} \
-    --batch_size=${num_epochs} \
+    --batch_size=${batch_size} \
     --save_freq=${save_freq} \
     --momentum=0.9 \
     --use_adam=False \
@@ -50,7 +50,7 @@ time python ../GenData/driver.py \
             # --lr=${lr} \
             # --dr=${dr} \
             # --num_epochs=${num_epochs} \
-            # --batch_size=${num_epochs} \
+            # --batch_size=${batch_size} \
             # --save_freq=${save_freq} \
             # --momentum=0.9 \
             # --use_adam=False \
@@ -88,7 +88,7 @@ time python ../GenData/driver.py \
             # --lr=${lr} \
             # --dr=${dr} \
             # --num_epochs=${num_epochs} \
-            # --batch_size=${num_epochs} \
+            # --batch_size=${batch_size} \
             # --save_freq=${save_freq} \
             # --momentum=0.9 \
             # --use_adam=False \
@@ -127,7 +127,7 @@ time python ../GenData/driver.py \
             # --lr=${lr} \
             # --dr=${dr} \
             # --num_epochs=${num_epochs} \
-            # --batch_size=${num_epochs} \
+            # --batch_size=${batch_size} \
             # --save_freq=${save_freq} \
             # --momentum=0.9 \
             # --use_adam=False \
