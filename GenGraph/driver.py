@@ -26,7 +26,13 @@ def sort_nicely(l):
     l.sort(key=alphanum_key)
     return l
 
-
+def sort_epoch(l):
+    ll=[]
+    for item in l:
+        if "_390" in item:
+            ll.append(item)
+            
+    return ll
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -115,6 +121,8 @@ def main():
             print("*" * 20)
             exp_glob_path = exp + "/*.pth"
             all_ckpt_files = sort_nicely(glob.glob(exp_glob_path))
+            #all_ckpt_files = sort_epoch(glob.glob(exp_glob_path))
+            
             if args.num_convert > 0:
                 all_ckpt_files = all_ckpt_files[0 : args.num_convert]
                 print("=> Num Convert: {}".format(args.num_convert))
@@ -153,6 +161,7 @@ def main():
         glob_path = args.input_path + "/*.pth"
         print(glob_path)
         all_ckpt_files = sort_nicely(glob.glob(glob_path))
+        #all_ckpt_files = sort_epoch(glob.glob(glob_path))
         # get all the ckpt files in the directory
         if args.num_convert > 0:
             all_ckpt_files = all_ckpt_files[0 : args.num_convert]
