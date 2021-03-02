@@ -4,3 +4,4 @@ time python ../GenGraph/driver.py \
       --weight_transform='identity'\
       --glob='False'\
       --num_convert=100
+
