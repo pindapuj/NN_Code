@@ -198,12 +198,258 @@ class CIFAR_Net(nn.Module):
         return x, intermediates
 
 
+class Alex_Net(nn.Module):
+    def __init__(self, init_weights=False, p=0.5):
+        super(Alex_Net, self).__init__()
+        self.p = p
+        self.conv1 = nn.Conv2d(3, 48 * 2, kernel_size=7, stride=2, padding=2)  # input[3, 32, 32]  output[48, 15, 15]
+        self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2)  # output[48, 27, 27]
+        self.conv2 = nn.Conv2d(48 * 2, 128 * 2, kernel_size=5, padding=2)  # output[128, 27, 27]
+        self.pool2 = nn.MaxPool2d(kernel_size=3, stride=2)  # output[128, 13, 13]
+
+        self.conv3 = nn.Conv2d(128 * 2, 192 * 2, kernel_size=3, padding=1)  # output[192, 13, 13]
+        self.conv4 = nn.Conv2d(192 * 2, 192 * 2, kernel_size=3, padding=1)  # output[192, 13, 13]
+        self.conv5 = nn.Conv2d(192 * 2, 128 * 2, kernel_size=3, padding=1)  # output[128, 13, 13]
+
+        self.dr1 = nn.Dropout(p=self.p)
+        self.fc1 = nn.Linear(128 * 2 * 3 * 3, 1024)
+        self.dr2 = nn.Dropout(p=self.p)
+        self.fc2 = nn.Linear(1024, 512)
+        self.fc3 = nn.Linear(512, 10)
+
+        self.param_info = [
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (7, 7),
+                "stride": 2,
+                "padding": 2,
+                "name": "Conv1",
+            },
+            {
+                "layer_type": "MaxPool2d",
+                "kernel_size": (3, 3),
+                "stride": 2,
+                "padding": 0,
+                "name": "MaxPool1",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (5, 5),
+                "stride": 1,
+                "padding": 2,
+                "name": "Conv2",
+            },
+            {
+                "layer_type": "MaxPool2d",
+                "kernel_size": (3, 3),
+                "stride": 2,
+                "padding": 0,
+                "name": "MaxPool2",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv3",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv4",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv5",
+            },
+            {"layer_type": "Linear", "name": "Linear1"},
+            {"layer_type": "Linear", "name": "Linear2"},
+            {"layer_type": "Linear", "name": "Linear3"},
+        ]
+
+        if init_weights:
+            self._initialize_weights()
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        x = F.relu(self.conv2(x))
+        x = self.pool2(x)
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
+        x = torch.flatten(x, start_dim=1)
+
+        x = F.relu(self.fc1(self.dr1(x)))
+        x = F.relu(self.fc2(self.dr2(x)))
+        x = self.fc3(x)
+
+        return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+
+class VGG_Net(nn.Module):
+    def __init__(self, init_weights=False, p=0.5):
+        super(VGG_Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.conv3 = nn.Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.conv5 = nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        self.conv6 = nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.conv7 = nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+
+        self.dr1 = nn.Dropout(p=p)
+        self.fc1 = nn.Linear(256*2*2, 128)
+        self.dr2 = nn.Dropout(p=p)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 10)
+
+        self.param_info = [
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv1",
+            },
+            {
+                "layer_type": "MaxPool2d",
+                "kernel_size": (2, 2),
+                "stride": 2,
+                "padding": 0,
+                "name": "MaxPool1",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv2",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv3",
+            },
+            {
+                "layer_type": "MaxPool2d",
+                "kernel_size": (2, 2),
+                "stride": 2,
+                "padding": 0,
+                "name": "MaxPool2",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv4",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv5",
+            },
+            {
+                "layer_type": "MaxPool2d",
+                "kernel_size": (2, 2),
+                "stride": 2,
+                "padding": 0,
+                "name": "MaxPool3",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv6",
+            },
+            {
+                "layer_type": "Conv2d",
+                "kernel_size": (3, 3),
+                "stride": 1,
+                "padding": 1,
+                "name": "Conv7",
+            },
+            {
+                "layer_type": "MaxPool2d",
+                "kernel_size": (2, 2),
+                "stride": 2,
+                "padding": 0,
+                "name": "MaxPool4",
+            },
+            {"layer_type": "Linear", "name": "Linear1"},
+            {"layer_type": "Linear", "name": "Linear2"},
+            {"layer_type": "Linear", "name": "Linear3"},
+        ]
+
+        if init_weights:
+            self._initialize_weights()
+
+    def forward(self, x):
+        # N x 3 x 224 x 224
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = self.pool2(x)
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
+        x = self.pool3(x)
+        x = F.relu(self.conv6(x))
+        x = F.relu(self.conv7(x))
+        x = self.pool4(x)
+        # N x 512 x 7 x 7
+        x = torch.flatten(x, start_dim=1)
+        # N x 512*7*7
+        x = self.dr1(F.relu(self.fc1(x)))
+        x = self.dr2(F.relu(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                # nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+
 """
 Extract the data needed for the activation graph
 """
 
 
 def get_data(batch_size=100, single_class=-1):
+    print("=============================get_data_used======================")
     # get data
     CIFAR_DATA_PATH = "/z/pujat/NN_Dynamics/src/data"
     transform = transforms.Compose(
@@ -547,7 +793,6 @@ def convert_to_n2b(net, ckpt_files, save_path="../data/sample_experiment/", args
 
     try:
         # nx_graph
-
         if args.activation_graph:
             save_nx = os.path.join(save_path, "nx_graphs_acts_n2b")
         else:
@@ -656,9 +901,9 @@ def convert_model_to_network(
 
             # load the model
             try:
-                state_dict = torch.load(file)
+                state_dict = torch.load(file, map_location=lambda storage, loc: storage)
             except:
-                state_dict = torch.load(file)["state_dict"]
+                state_dict = torch.load(file, map_location=lambda storage, loc: storage)["state_dict"]
             missing, unexpected = net.load_state_dict(state_dict, strict=False)
             print("Missing keys: ", missing)
             print("Unexpected keys: ", unexpected)
