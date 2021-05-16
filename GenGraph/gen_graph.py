@@ -707,7 +707,7 @@ def make_n2b_graph(
             except:
                 # reshape to recover the previous number of channels
                 edge_weights = torch.norm(
-                    idx.reshape(idx.shape[0], 16, -1), p=2, dim=(2)
+                    idx.reshape(idx.shape[0], node_ids_old.shape[0], -1), p=2, dim=(2)
                 )
 
                 [
