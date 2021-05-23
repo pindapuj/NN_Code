@@ -67,7 +67,7 @@ def main():
         net = BatchNorm_Net().to(device)
     else:  # make a normal net
         # set init_weights=True if needed
-        net = Net().to(device)
+        net = Net(p=args.dr).to(device)
     '''elif args.dr > 0.0:  # make dropout net
         print("=> Using DR Net!")
         net = Dropout_Net(p=args.dr)'''
