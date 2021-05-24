@@ -55,7 +55,7 @@ def make_experiment(net, args, trainloader, testloader, device):
     exp_name = make_save_name(args)
     criterion = nn.CrossEntropyLoss()
     if args.patience != 0:
-        es = EarlyStopping(mode="max", patience=5)
+        es = EarlyStopping(mode="max", patience=args.patience)
     if args.use_adam:
         optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=0.0001)
     else:
