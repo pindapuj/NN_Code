@@ -17,6 +17,7 @@ def parameter_homology(model, param_info, input_size, max_dim=1, do_cocycles=Fal
         do_cocycles (bool, optional): whether to return cocycles of persistent
             (co)homology calculation. Default is False.
 
+
     Returns:
         dict: the scikit-tda dictionary output. See: https://ripser.scikit-tda.org/reference/stubs/ripser.ripser.html#ripser.ripser
     '''
